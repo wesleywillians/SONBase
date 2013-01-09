@@ -44,7 +44,7 @@ class TestCase extends \PHPUnit_Framework_TestCase {
         foreach ($moduleManager->getModules() as $m) {
             if ($m <> "DoctrineModule" and $m <> "DoctrineORMModule" and $m <> "SONBase" and $m <> "DoctrineDataFixtureModule") {
 
-                $moduleConfig = include __DIR__ . '/../../../../' . ucfirst($m) . '/config/module.config.php';
+                $moduleConfig = include __DIR__ . '/../../../../../../module/' . ucfirst($m) . '/config/module.config.php';
                 if (isset($moduleConfig['router'])) {
                     foreach ($moduleConfig['router']['routes'] as $key => $name) {
                         $this->routes[$key] = $name;
