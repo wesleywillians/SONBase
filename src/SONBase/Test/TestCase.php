@@ -7,6 +7,8 @@ use Zend\Mvc\Service\ServiceManagerConfig;
 use Zend\Mvc\MvcEvent;
 use Doctrine\ORM\EntityManager;
 
+chdir(__DIR__.'/../../../../../../');
+
 class TestCase extends \PHPUnit_Framework_TestCase {
 
     /**
@@ -18,19 +20,14 @@ class TestCase extends \PHPUnit_Framework_TestCase {
      * @var EntityManager
      */
     protected $em;
-    protected $module;
+    protected $modules;
 
     public function setup() {
 
         parent::setup();
 
-        $config = include 'config/application.config.php';
-        $config['module_listener_options']['config_static_paths'] = array(getcwd() . '/config/test.config.php');
-
-        if (file_exists(__DIR__ . '/config/test.config.php')) {
-            $moduleConfig = include __DIR__ . '/config/test.config.php';
-            array_unshift($config['module_listener_options']['config_static_paths'], $moduleConfig);
-        }
+        $pathDir = getcwd()."/";
+        $config = include $pathDir.'config/application.config.php';
 
         $this->serviceManager = new ServiceManager(new ServiceManagerConfig(
                                 isset($config['service_manager']) ? $config['service_manager'] : array()
@@ -41,14 +38,12 @@ class TestCase extends \PHPUnit_Framework_TestCase {
         $moduleManager = $this->serviceManager->get('ModuleManager');
         $moduleManager->loadModules();
         $this->routes = array();
-        foreach ($moduleManager->getModules() as $m) {
-            if ($m <> "DoctrineModule" and $m <> "DoctrineORMModule" and $m <> "SONBase" and $m <> "DoctrineDataFixtureModule") {
-
-                $moduleConfig = include __DIR__ . '/../../../../../../module/' . ucfirst($m) . '/config/module.config.php';
-                if (isset($moduleConfig['router'])) {
-                    foreach ($moduleConfig['router']['routes'] as $key => $name) {
-                        $this->routes[$key] = $name;
-                    }
+        $this->modules = $moduleManager->getModules();
+        foreach ($this->filterModules()  as $m) {
+            $moduleConfig = include $pathDir.'module/' . ucfirst($m) . '/config/module.config.php';
+            if (isset($moduleConfig['router'])) {
+                foreach ($moduleConfig['router']['routes'] as $key => $name) {
+                    $this->routes[$key] = $name;
                 }
             }
         }
@@ -62,29 +57,47 @@ class TestCase extends \PHPUnit_Framework_TestCase {
                 ->setResponse($this->application->getResponse())
                 ->setRouter($this->serviceManager->get('Router'));
 
-        $x = include(getcwd() . '/config/test.config.php');
-        $dbName = $x['doctrine']['connection']['orm_default']['params']['dbname'];
         $this->em = $this->serviceManager->get('Doctrine\ORM\EntityManager');
-        $this->createDatabase();
+
+        foreach($this->filterModules() as $m) 
+            $this->createDatabase($m);
+        
     }
 
-    public function createDatabase() {
-
-        if (file_exists('module/' . $this->module . '/db/create.sql')) {
-            $sql = file('module/' . $this->module . '/db/create.sql');
-            foreach ($sql as $s)
-                $this->getEm()->getConnection()->exec($s);
+    private function filterModules()
+    {
+        $array = array();
+        foreach($this->modules as $m) {
+            if ($m <> "DoctrineModule" and $m <> "DoctrineORMModule" and $m <> "SONBase" and $m <> "DoctrineDataFixtureModule") 
+                $array[] = $m;
         }
-        
-        $this->getEm()->getConnection()->exec('SET FOREIGN_KEY_CHECKS = 0;');
+        return $array;
+    }
+
+    public function createDatabase($module) {
+        if (file_exists(getcwd().'/module/' . $module . '/db/create.sql')) {
+            $sql = file(getcwd().'/module/' . $module . '/db/create.sql');
+            foreach ($sql as $s) {
+                $this->getEm()->getConnection()->exec($s);
+            }
+
+           $this->getEm()->getConnection()->exec('SET FOREIGN_KEY_CHECKS = 0;');
+        }
     }
 
     public function tearDown() {
         parent::tearDown();
-        if (file_exists('module/' . $this->module . '/db/drop.sql')) {
-            $sql = file('module/' . $this->module . '/db/drop.sql');
-            foreach ($sql as $s)
-                $this->getEm()->getConnection()->exec($s);
+
+        foreach($this->filterModules()  as $m)
+        {
+            if (file_exists(getcwd().'/module/' . $m . '/db/drop.sql')) {
+                $sql = file(getcwd().'/module/' . $m . '/db/drop.sql');
+                foreach ($sql as $s) {
+                    $this->getEm()->getConnection()->exec($s);
+                }
+                    
+            }
+            
         }
     }
 
